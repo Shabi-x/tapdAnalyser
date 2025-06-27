@@ -33,30 +33,6 @@ async function main() {
             }
         );
 
-        const matchSchema = {
-            date: z.string(),
-            team1: z.string(),
-            team2: z.string(),
-        };
-
-        console.log("注册 getTodayMatchResult 工具...");
-        server.tool(
-            "getTodayMatchResult",
-            "获取今天的美职篮的一场比赛的结果",
-            matchSchema,
-            async ({ date, team1, team2 }): Promise<MCPResponse> => {
-                console.log(`收到比赛结果查询请求，日期: ${date}, 队伍: ${team1} vs ${team2}`);
-                return {
-                    content: [
-                        {
-                            type: "text" as const,
-                            text: `今日是${date}，${team1}和${team2}的比赛结果是：`,
-                        },
-                    ],
-                };
-            }
-        );
-
         console.log("初始化 StdioServerTransport...");
         const transport = new StdioServerTransport();
         
