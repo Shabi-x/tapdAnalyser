@@ -1,0 +1,27 @@
+{
+  "name": "tapdAnalyser",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "frontend": "pnpm --filter frontend",
+    "backend": "pnpm --filter backend",
+    "shared": "pnpm --filter @tapdAnalyser/shared",
+    "test": "turbo run test",
+    "type-check": "turbo run type-check"
+  },
+  "devDependencies": {
+    "turbo": "^1.12.4",
+    "prettier": "^3.2.5",
+    "@types/node": "^20.11.19"
+  },
+  "packageManager": "pnpm@10.12.4",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
