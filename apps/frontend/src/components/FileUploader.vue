@@ -14,41 +14,15 @@ const copySuccess = ref(false);
 const configResult = ref('');
 const convertLoading = ref(false);
 const convertError = ref('');
-const showConfig = ref(false);
 
-// 文件统计信息
-const wordCount = computed(() => {
-  if (!fileContent.value) return 0;
-  return fileContent.value.trim().split(/\s+/).length;
-});
+// 定义emit
+const emit = defineEmits(['analysis-result', 'analysis-loading', 'analysis-error']);
 
-const readingTime = computed(() => {
-  const words = wordCount.value;
-  // 假设平均阅读速度为每分钟200字
-  return Math.max(1, Math.ceil(words / 200));
-});
 
 // 计算属性：渲染后的Markdown
 const renderedContent = computed(() => {
   return renderMarkdown(fileContent.value);
 });
-
-// 处理文件上传 - 用于TDesign上传组件
-const handleFileChange = (file: any) => {
-  if (!file) return;
-  
-  // 确保只处理第一个文件
-  const actualFile = Array.isArray(file) ? file[0]?.raw : file.raw;
-  if (!actualFile) return;
-  
-  // 检查文件类型
-  if (!isValidMarkdownFile(actualFile)) {
-    error.value = '只支持上传MD文件';
-    return;
-  }
-  
-  uploadFile(actualFile);
-};
 
 // 实际上传文件的函数
 const uploadFile = async (file: File) => {
@@ -145,6 +119,10 @@ const clearFile = () => {
   fileContent.value = '';
   fileName.value = '';
   error.value = '';
+  configResult.value = '';
+  convertError.value = '';
+  // 通知父组件清除结果
+  emit('analysis-result', { content: '', sourceFile: '', type: 'markdown' });
 };
 
 // 分析内容
@@ -156,7 +134,9 @@ const analyzeContent = async () => {
   
   convertLoading.value = true;
   convertError.value = '';
-  showConfig.value = true;
+  
+  // 通知父组件加载状态变化
+  emit('analysis-loading', true);
   
   try {
     console.log('正在分析内容，生成配置代码');
@@ -169,14 +149,26 @@ const analyzeContent = async () => {
     
     if (response.data.error) {
       convertError.value = response.data.error;
+      // 通知父组件错误
+      emit('analysis-error', response.data.error);
     } else {
       configResult.value = response.data.result || '未能生成有效的配置代码';
+      // 通知父组件结果
+      emit('analysis-result', {
+        content: configResult.value,
+        sourceFile: fileName.value,
+        type: 'markdown'
+      });
     }
   } catch (err) {
     console.error('生成配置代码失败:', err);
     convertError.value = '生成配置代码失败，请稍后再试';
+    // 通知父组件错误
+    emit('analysis-error', '生成配置代码失败，请稍后再试');
   } finally {
     convertLoading.value = false;
+    // 通知父组件加载状态变化
+    emit('analysis-loading', false);
   }
 };
 
@@ -195,129 +187,92 @@ const copyConfig = async () => {
     error.value = '复制到剪贴板失败';
   }
 };
-
-// 关闭配置结果
-const closeConfig = () => {
-  showConfig.value = false;
-  configResult.value = '';
-};
 </script>
 
 <template>
   <div class="uploader-container">
-    <!-- 文件内容获取区域 -->
-    <t-card :bordered="true" hover-shadow class="upload-card">
-      <div class="card-header">
-        <h3>内容获取</h3>
-      </div>
-      
-      <!-- 文件上传区域 -->
-      <t-space direction="vertical" size="small" style="width: 100%">
-        <div>
-          <div 
-            class="drop-area" 
-            :class="{ 'drag-active': dragActive }"
-            @dragenter="handleDragEnter"
-            @dragleave="handleDragLeave"
-            @dragover="handleDragOver"
-            @drop="handleDrop"
-            @click="handleManualUpload"
-          >
-            <div class="upload-content">
-              <t-icon name="upload" size="24px" />
-              <p class="upload-text">拖拽MD文件到此处或点击上传</p>
+    <div class="layout-container">
+      <!-- 左侧内容区域 -->
+      <div class="left-section">
+        <!-- 文件内容获取区域 -->
+        <t-card :bordered="true" hover-shadow class="upload-card">
+          <div class="card-header">
+            <h3>内容获取</h3>
+          </div>
+          
+          <!-- 文件上传区域 -->
+          <t-space direction="vertical" size="small" style="width: 100%">
+            <div>
+              <div 
+                class="drop-area" 
+                :class="{ 'drag-active': dragActive }"
+                @dragenter="handleDragEnter"
+                @dragleave="handleDragLeave"
+                @dragover="handleDragOver"
+                @drop="handleDrop"
+                @click="handleManualUpload"
+              >
+                <div class="upload-content">
+                  <t-icon name="upload" size="24px" />
+                  <p class="upload-text">拖拽MD文件到此处或点击上传</p>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-        
-        <t-alert v-if="error" theme="error" :message="error" />
-        
-        <!-- 加载中提示 -->
-        <div v-if="loading" class="loading-container">
-          <t-loading />
-          <p>上传中...</p>
-        </div>
-      </t-space>
-    </t-card>
-    
-    <!-- 内容展示区域 -->
-    <t-card v-if="fileContent" :bordered="true" hover-shadow class="content-card">
-      <template #title>
-        <div class="content-header">
-          <div class="header-left">
-            <t-tag theme="primary" variant="light">{{ fileName }}</t-tag>
-          </div>
-          <div class="header-right">
-            <t-tooltip :content="copySuccess ? '复制成功！' : '复制为纯文本'">
-              <t-button variant="text" size="small" @click="copyContent">
-                <template #icon><t-icon name="file-copy" /></template>
-              </t-button>
-            </t-tooltip>
-            <t-switch v-model="showRawContent" size="small">
-              <template #label>{{ showRawContent ? '源码' : '预览' }}</template>
-            </t-switch>
-            <t-button variant="text" size="small" @click="clearFile">
-              <template #icon><t-icon name="delete" /></template>
-            </t-button>
-          </div>
-        </div>
-      </template>
-      
-      <!-- 内容显示 -->
-      <div class="content-wrapper">
-        <!-- 原始内容 -->
-        <pre v-if="showRawContent" class="content-display">{{ fileContent }}</pre>
-        
-        <!-- 渲染后的内容 -->
-        <div v-else class="markdown-content" v-html="renderedContent"></div>
-      </div>
-      
-      <!-- 分析控制 -->
-      <template #footer>
-        <div class="footer-actions">
-          <t-button theme="primary" @click="analyzeContent" :loading="convertLoading">
-            <template #icon><t-icon name="play" /></template>
-            生成配置代码
-          </t-button>
-        </div>
-      </template>
-    </t-card>
-    
-    <!-- 配置代码结果 -->
-    <t-dialog
-      v-model:visible="showConfig"
-      header="配置代码结果"
-      :footer="false"
-      width="800px"
-      :close-on-overlay-click="false"
-    >
-      <template v-if="convertError">
-        <t-alert theme="error" :message="convertError" />
-      </template>
-      
-      <template v-else-if="convertLoading">
-        <div class="loading-container">
-          <t-loading />
-          <p>正在生成配置代码...</p>
-        </div>
-      </template>
-      
-      <template v-else>
-        <div class="config-container">
-          <pre class="config-code">{{ configResult }}</pre>
-        </div>
-        
-        <div class="dialog-footer">
-          <t-space>
-            <t-button theme="default" @click="closeConfig">关闭</t-button>
-            <t-button theme="primary" @click="copyConfig">
-              <template #icon><t-icon name="file-copy" /></template>
-              复制代码
-            </t-button>
+            
+            <t-alert v-if="error" theme="error" :message="error" />
+            
+            <!-- 加载中提示 -->
+            <div v-if="loading" class="loading-container">
+              <t-loading />
+              <p>上传中...</p>
+            </div>
           </t-space>
-        </div>
-      </template>
-    </t-dialog>
+        </t-card>
+        
+        <!-- 内容展示区域 -->
+        <t-card v-if="fileContent" :bordered="true" hover-shadow class="content-card">
+          <template #title>
+            <div class="content-header">
+              <div class="header-left">
+                <t-tag theme="primary" variant="light">{{ fileName }}</t-tag>
+              </div>
+              <div class="header-right">
+                <t-tooltip :content="copySuccess ? '复制成功！' : '复制为纯文本'">
+                  <t-button variant="text" size="small" @click="copyContent">
+                    <template #icon><t-icon name="file-copy" /></template>
+                  </t-button>
+                </t-tooltip>
+                <t-switch v-model="showRawContent" size="small">
+                  <template #label>{{ showRawContent ? '源码' : '预览' }}</template>
+                </t-switch>
+                <t-button variant="text" size="small" @click="clearFile">
+                  <template #icon><t-icon name="delete" /></template>
+                </t-button>
+              </div>
+            </div>
+          </template>
+          
+          <!-- 内容显示 -->
+          <div class="content-wrapper">
+            <!-- 原始内容 -->
+            <pre v-if="showRawContent" class="content-display">{{ fileContent }}</pre>
+            
+            <!-- 渲染后的内容 -->
+            <div v-else class="markdown-content" v-html="renderedContent"></div>
+          </div>
+          
+          <!-- 分析控制 -->
+          <template #footer>
+            <div class="footer-actions">
+              <t-button theme="primary" @click="analyzeContent" :loading="convertLoading">
+                <template #icon><t-icon name="play" /></template>
+                生成配置代码
+              </t-button>
+            </div>
+          </template>
+        </t-card>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -325,9 +280,19 @@ const closeConfig = () => {
 .uploader-container {
   width: 100%;
   padding: 16px;
+}
+
+.layout-container {
+  display: flex;
+  gap: 16px;
+}
+
+.left-section {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0; /* 防止内容溢出 */
 }
 
 .upload-card, .content-card {
@@ -563,29 +528,5 @@ const closeConfig = () => {
 
 :deep(.markdown-content table tr:nth-child(2n)) {
   background-color: #f6f8fa;
-}
-
-.config-container {
-  max-height: 500px;
-  overflow-y: auto;
-  margin-bottom: 16px;
-  border: 1px solid #EAEAEA;
-  border-radius: 4px;
-  background-color: #FAFAFA;
-}
-
-.config-code {
-  white-space: pre-wrap;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 14px;
-  line-height: 1.6;
-  padding: 12px;
-  margin: 0;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
 }
 </style> 

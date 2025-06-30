@@ -3,10 +3,52 @@ import QueryInput from './components/QueryInput.vue'
 import FileUploader from './components/FileUploader.vue'
 import { ref } from 'vue'
 
+interface AnalysisResult {
+  content: string;
+  sourceFile: string;
+  type: string;
+}
+
 const activeTab = ref('upload') // 默认显示文件上传
 const showResultPanel = ref(true) // 控制结果面板的显示
 const toggleResultPanel = () => {
   showResultPanel.value = !showResultPanel.value
+}
+
+// 分析结果相关状态
+const analysisResult = ref<string | null>(null)
+const analysisLoading = ref(false)
+const analysisError = ref('')
+const sourceFileName = ref('')
+
+// 处理分析结果
+const handleAnalysisResult = (result: AnalysisResult) => {
+  analysisResult.value = result.content
+  sourceFileName.value = result.sourceFile
+  analysisError.value = ''
+}
+
+// 处理分析加载状态
+const handleAnalysisLoading = (loading: boolean) => {
+  analysisLoading.value = loading
+}
+
+// 处理分析错误
+const handleAnalysisError = (error: string) => {
+  analysisError.value = error
+  analysisResult.value = null
+}
+
+// 复制代码到剪贴板
+const copyResultToClipboard = async () => {
+  if (!analysisResult.value) return
+  
+  try {
+    await navigator.clipboard.writeText(analysisResult.value)
+    // 可以添加提示复制成功的逻辑
+  } catch (err) {
+    console.error('复制失败:', err)
+  }
 }
 </script>
 
@@ -34,7 +76,11 @@ const toggleResultPanel = () => {
             <t-tabs v-model="activeTab" theme="card" size="medium">
               <t-tab-panel value="upload" label="Markdown上传">
                 <template #icon><t-icon name="file" /></template>
-                <FileUploader />
+                <FileUploader 
+                  @analysis-result="handleAnalysisResult"
+                  @analysis-loading="handleAnalysisLoading"
+                  @analysis-error="handleAnalysisError"
+                />
               </t-tab-panel>
               <t-tab-panel value="query" label="TAPD需求">
                 <template #icon><t-icon name="link" /></template>
@@ -58,9 +104,9 @@ const toggleResultPanel = () => {
             <div class="panel-header">
               <h3>分析结果</h3>
               <t-space>
-                <t-button theme="primary" variant="text" size="small">
-                  <template #icon><t-icon name="download" /></template>
-                  导出
+                <t-button theme="primary" variant="text" size="small" @click="copyResultToClipboard" :disabled="!analysisResult">
+                  <template #icon><t-icon name="file-copy" /></template>
+                  复制
                 </t-button>
                 <t-button theme="primary" variant="text" size="small">
                   <template #icon><t-icon name="code" /></template>
@@ -70,21 +116,43 @@ const toggleResultPanel = () => {
             </div>
             <div class="result-content">
               <!-- 结果展示区域 -->
-              <div class="empty-content">
-                <img src="/tapd-logo.svg" alt="TAPD Logo" class="empty-logo" />
-                <t-empty 
-                  description="请先上传Markdown文件或输入TAPD链接" 
-                  image=""
-                />
-                <div class="empty-tips">
-                  <p>支持以下功能：</p>
-                  <ul>
-                    <li>上传Markdown文件进行分析</li>
-                    <li>输入TAPD链接获取需求详情</li>
-                    <li>对内容进行结构化分析</li>
-                  </ul>
+              <template v-if="analysisLoading">
+                <div class="loading-container">
+                  <t-loading />
+                  <p>正在生成配置代码...</p>
                 </div>
-              </div>
+              </template>
+              
+              <template v-else-if="analysisError">
+                <t-alert theme="error" :message="analysisError" />
+              </template>
+              
+              <template v-else-if="analysisResult">
+                <div class="result-info">
+                  <t-tag theme="primary" variant="light">{{ sourceFileName }}</t-tag>
+                </div>
+                <div class="config-container">
+                  <pre class="config-code">{{ analysisResult }}</pre>
+                </div>
+              </template>
+              
+              <template v-else>
+                <div class="empty-content">
+                  <img src="/tapd-logo.svg" alt="TAPD Logo" class="empty-logo" />
+                  <t-empty 
+                    description="请先上传Markdown文件或输入TAPD链接" 
+                    image=""
+                  />
+                  <div class="empty-tips">
+                    <p>支持以下功能：</p>
+                    <ul>
+                      <li>上传Markdown文件进行分析</li>
+                      <li>输入TAPD链接获取需求详情</li>
+                      <li>对内容进行结构化分析</li>
+                    </ul>
+                  </div>
+                </div>
+              </template>
             </div>
           </div>
         </div>
@@ -166,6 +234,9 @@ const toggleResultPanel = () => {
   position: relative;
   transition: all 0.3s ease;
   max-width: 60%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .content-panel.expanded {
@@ -273,5 +344,50 @@ const toggleResultPanel = () => {
   color: #666;
   background-color: #f0f0f0;
   font-size: 14px;
+}
+
+/* 确保卡片内容区域撑满父元素 */
+:deep(.t-card) {
+  display: flex;
+  flex-direction: column;
+}
+
+:deep(.t-card__body) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+:deep(.t-tabs) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+:deep(.t-tabs__content) {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+:deep(.t-tab-panel) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  flex: 1;
+}
+
+:deep(.t-tabs__panel) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  flex: 1;
 }
 </style>
