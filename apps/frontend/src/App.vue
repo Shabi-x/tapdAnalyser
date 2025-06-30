@@ -61,9 +61,6 @@ const copyResultToClipboard = async () => {
           <div class="logo">TAPD Analyser</div>
         </div>
         <div class="header-actions">
-          <t-switch size="small">
-            <template #label>深色模式</template>
-          </t-switch>
           <t-avatar size="small" class="user-avatar">
             <template #icon><t-icon name="user" /></template>
           </t-avatar>

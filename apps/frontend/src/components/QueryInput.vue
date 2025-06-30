@@ -16,12 +16,6 @@ const urlHistory = ref([
   { id: 2, text: 'https://tapd.oa.com/example/prong/stories/view/987654321', time: '2023-10-12' }
 ]);
 
-// 字数统计
-const wordCount = computed(() => {
-  if (!result.value) return 0;
-  return result.value.trim().split(/\s+/).length;
-});
-
 // 验证TAPD URL
 const isValidTapdUrl = (url: string): boolean => {
   return url.trim().startsWith('https://tapd.oa.com/') || url.trim().startsWith('http://tapd.oa.com/');
