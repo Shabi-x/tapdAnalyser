@@ -94,6 +94,10 @@ const copyResultToClipboard = async () => {
                 </div>
               </t-tab-panel> -->
             </t-tabs>
+          </div>
+          
+          <!-- 展开/收起按钮 - 动态计算位置 -->
+          <div class="toggle-btn-container" :style="{ left: showResultPanel ? 'calc(60% - 20px)' : 'calc(95% - 20px)' }">
             <t-button class="toggle-btn" shape="circle" @click="toggleResultPanel">
               <t-icon :name="showResultPanel ? 'chevron-right' : 'chevron-left'" />
             </t-button>
@@ -227,6 +231,7 @@ const copyResultToClipboard = async () => {
 .main-layout {
   display: flex;
   height: 100%;
+  position: relative; /* 为了toggle-btn-container的绝对定位 */
 }
 
 .content-panel {
@@ -252,14 +257,28 @@ const copyResultToClipboard = async () => {
   transition: all 0.3s ease;
 }
 
-.toggle-btn {
+.toggle-btn-container {
   position: absolute;
-  right: -15px;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 10;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  background-color: white;
+  z-index: 1000;
+  pointer-events: none;
+  width: 40px;
+  height: 80px;
+  transition: left 0.3s ease;
+}
+
+.toggle-btn {
+  pointer-events: all; /* 恢复按钮的点击事件 */
+  box-shadow: 0 3px 15px rgba(0, 0, 0, 0.3);
+  background-color: #3B7CFF;
+  color: white;
+  border: 2px solid #ffffff;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .panel-header {

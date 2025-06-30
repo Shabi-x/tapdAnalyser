@@ -91,12 +91,6 @@ const handleManualUpload = () => {
   };
   input.click();
 };
-
-// 切换显示原始内容/渲染内容
-const toggleContentView = () => {
-  showRawContent.value = !showRawContent.value;
-};
-
 // 复制内容到剪贴板
 const copyContent = async () => {
   try {
@@ -171,22 +165,6 @@ const analyzeContent = async () => {
     emit('analysis-loading', false);
   }
 };
-
-// 复制配置代码
-const copyConfig = async () => {
-  if (!configResult.value) return;
-  
-  try {
-    await copyToClipboard(configResult.value);
-    copySuccess.value = true;
-    setTimeout(() => {
-      copySuccess.value = false;
-    }, 2000);
-  } catch (err) {
-    console.error('复制失败:', err);
-    error.value = '复制到剪贴板失败';
-  }
-};
 </script>
 
 <template>
@@ -195,7 +173,7 @@ const copyConfig = async () => {
       <!-- 左侧内容区域 -->
       <div class="left-section">
         <!-- 文件内容获取区域 -->
-        <t-card :bordered="true" hover-shadow class="upload-card">
+        <t-card :bordered="true" hover-shadow class="upload-card" :class="{ 'compact-card': fileContent }">
           <div class="card-header">
             <h3>内容获取</h3>
           </div>
@@ -205,7 +183,7 @@ const copyConfig = async () => {
             <div>
               <div 
                 class="drop-area" 
-                :class="{ 'drag-active': dragActive }"
+                :class="{ 'drag-active': dragActive, 'compact-area': fileContent }"
                 @dragenter="handleDragEnter"
                 @dragleave="handleDragLeave"
                 @dragover="handleDragOver"
@@ -280,11 +258,15 @@ const copyConfig = async () => {
 .uploader-container {
   width: 100%;
   padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .layout-container {
   display: flex;
   gap: 16px;
+  height: 100%;
 }
 
 .left-section {
@@ -293,6 +275,7 @@ const copyConfig = async () => {
   flex-direction: column;
   gap: 16px;
   min-width: 0; /* 防止内容溢出 */
+  height: 100%;
 }
 
 .upload-card, .content-card {
@@ -304,34 +287,16 @@ const copyConfig = async () => {
   position: relative;
 }
 
-.content-card::after {
-  content: '';
-  position: absolute;
-  bottom: 60px;
-  right: 20px;
-  width: 100px;
-  height: 40px;
-  background-image: url('/tapd-logo.svg');
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  opacity: 0.08;
-  pointer-events: none;
-  z-index: 1;
+/* 上传卡片在有文件时的紧凑样式 */
+.compact-card {
+  flex-shrink: 0;
 }
 
-.card-header {
+/* 内容卡片样式 */
+.content-card {
+  flex: 1;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.card-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #2C2C2C;
+  flex-direction: column;
 }
 
 .drop-area {
@@ -348,29 +313,23 @@ const copyConfig = async () => {
   justify-content: center;
 }
 
-.drop-area:hover {
-  border-color: #3B7CFF;
-  box-shadow: 0 0 8px rgba(59, 124, 255, 0.2);
-  transform: translateY(-2px);
+/* 有文件时的紧凑拖放区域 */
+.compact-area {
+  height: 100px;
 }
 
-.drag-active {
-  border-color: #3B7CFF;
-  background: linear-gradient(180deg, #F5F9FF, #EFF7FF);
-  box-shadow: 0 0 12px rgba(59, 124, 255, 0.3);
-}
-
-.upload-content {
+.card-header {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  margin-bottom: 12px;
 }
 
-.upload-text {
+.card-header h3 {
   margin: 0;
-  font-size: 14px;
-  color: #666;
+  font-size: 16px;
+  font-weight: 600;
+  color: #2C2C2C;
 }
 
 .loading-container {
