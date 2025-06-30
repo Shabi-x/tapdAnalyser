@@ -9,7 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/file-saver": "^2.0.7",
+    "@types/markdown-it": "^14.1.2",
     "axios": "^1.10.0",
+    "file-saver": "^2.0.5",
+    "markdown-it": "^14.1.0",
     "tdesign-vue-next": "^1.14.1",
     "vue": "^3.4.15"
   },

@@ -1,6 +1,7 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import multer from 'multer';
 import { MCPClient } from '../client/mcpClient.js';
 
 dotenv.config();
@@ -10,6 +11,9 @@ const PORT = process.env.PORT || 3000;
 
 // 初始化MCP客户端
 const mcpClient = new MCPClient();
+
+// 配置multer，使用内存存储
+const upload = multer({ storage: multer.memoryStorage() });
 
 // 中间件
 app.use(cors());
@@ -21,7 +25,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // 查询接口
-app.post('/api/query', async (req: Request, res: Response) => {
+app.post('/api/query', async (req, res) => {
   try {
     const { query } = req.body;
     
@@ -37,6 +41,35 @@ app.post('/api/query', async (req: Request, res: Response) => {
     res.json({ result: response });
   } catch (error) {
     console.error('处理查询时出错:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 文件上传接口 - 简单版本，只提取内容
+app.post('/api/upload', upload.single('file'), (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: '未找到上传的文件' });
+    }
+
+    // 检查文件类型
+    const fileOriginalName = file.originalname;
+    if (!fileOriginalName.toLowerCase().endsWith('.md')) {
+      return res.status(400).json({ error: '只支持Markdown文件' });
+    }
+
+    // 直接从内存中提取文件内容
+    const fileContent = file.buffer.toString('utf-8');
+    console.log(`接收到文件: ${fileOriginalName}, 大小: ${file.size} 字节`);
+    
+    // 返回文件内容
+    res.json({ 
+      content: fileContent,
+      filename: fileOriginalName
+    });
+  } catch (error) {
+    console.error('处理上传文件时出错:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 });

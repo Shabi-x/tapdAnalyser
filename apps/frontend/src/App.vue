@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import QueryInput from './components/QueryInput.vue'
+import FileUploader from './components/FileUploader.vue'
+import { ref } from 'vue'
+
+const activeTab = ref('query') // 'query' 或 'upload'
 </script>
 
 <template>
@@ -9,7 +13,14 @@ import QueryInput from './components/QueryInput.vue'
         <div class="logo">TAPD分析器</div>
       </t-header>
       <t-content class="content">
-        <QueryInput />
+        <t-tabs v-model="activeTab">
+          <t-tab-panel value="query" label="文本查询">
+            <QueryInput />
+          </t-tab-panel>
+          <t-tab-panel value="upload" label="文件上传">
+            <FileUploader />
+          </t-tab-panel>
+        </t-tabs>
       </t-content>
       <t-footer class="footer">
         TAPD分析器 &copy; {{ new Date().getFullYear() }}
