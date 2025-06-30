@@ -13,7 +13,7 @@ if (!OPENAI_API_KEY || !OPENAI_BASE_URL) {
     throw new Error("OPENAI_API_KEY 或 OPENAI_BASE_URL 未设置");
 }
 
-class MCPClient {
+export class MCPClient {
     private mcp: Client;
     private openai: OpenAI;
     private transport: StdioClientTransport | null = null;
@@ -94,7 +94,7 @@ class MCPClient {
             return choice.message.content || "抱歉，我不太理解您的问题。";
         }
 
-        const results = [];
+        const results: string[] = [];
         for (const toolCall of choice.message.tool_calls) {
             const toolName = toolCall.function.name;
             const toolArgs = JSON.parse(toolCall.function.arguments);
@@ -109,10 +109,61 @@ class MCPClient {
 
             if (result.content) {
                 if (Array.isArray(result.content)) {
-                    const text = result.content.map(item => item.text).join('');
-                    results.push(text);
+                    if (toolName === "transformMarkdownToBIDashboard") {
+                        try {
+                            const textContent = result.content[0]?.text || "";
+                            const dataObj = JSON.parse(textContent);
+                            
+                            if (dataObj.prompt && dataObj.markdownContent) {
+                                console.log("接收到Markdown转换数据，正在调用大模型生成配置代码...");
+                                
+                                const aiResponse = await this.openai.chat.completions.create({
+                                    model: "qwen-plus",
+                                    messages: [
+                                        {
+                                            role: "system",
+                                            content: "你是一个专业的需求文档分析工具，擅长将Markdown文档转换为TypeScript配置代码。"
+                                        },
+                                        {
+                                            role: "user",
+                                            content: dataObj.prompt
+                                        }
+                                    ],
+                                    temperature: 0.2,
+                                });
+                                
+                                let generatedCode = aiResponse.choices[0].message.content || "";
+                                
+                                if (generatedCode.includes('```typescript')) {
+                                    generatedCode = generatedCode.split('```typescript')[1].split('```')[0].trim();
+                                } else if (generatedCode.includes('```ts')) {
+                                    generatedCode = generatedCode.split('```ts')[1].split('```')[0].trim();
+                                } else if (generatedCode.includes('```javascript')) {
+                                    generatedCode = generatedCode.split('```javascript')[1].split('```')[0].trim();
+                                } else if (generatedCode.includes('```js')) {
+                                    generatedCode = generatedCode.split('```js')[1].split('```')[0].trim();
+                                } else if (generatedCode.includes('```')) {
+                                    generatedCode = generatedCode.split('```')[1].split('```')[0].trim();
+                                }
+                                
+                                console.log("配置代码生成成功，长度:", generatedCode.length);
+                                
+                                results.push(generatedCode);
+                            } else {
+                                const text = result.content.map(item => item.text).join('');
+                                results.push(text);
+                            }
+                        } catch (error) {
+                            console.error("处理Markdown转换结果失败:", error);
+                            const text = result.content.map(item => item.text).join('');
+                            results.push(text);
+                        }
+                    } else {
+                        const text = result.content.map(item => item.text).join('');
+                        results.push(text);
+                    }
                 } else {
-                    results.push(result.content);
+                    results.push(JSON.stringify(result.content));
                 }
             }
 

@@ -62,6 +62,12 @@ export class MCPClient {
     }
 
     async processQuery(query: string) {
+        // 检查是否已连接到MCP服务器
+        if (this.tools.length === 0) {
+            console.log("警告：未连接到MCP服务器或没有可用工具，将直接使用模型生成回应");
+            return this.generateDirectResponse(query);
+        }
+
         const messages: ChatCompletionMessageParam[] = [
             {
                 role: "user",
@@ -69,31 +75,41 @@ export class MCPClient {
             },
         ];
 
-        const openAITools = this.tools.map(tool => ({
-            type: 'function' as const,
-            function: {
-                name: tool.name,
-                description: tool.description || "",
-                parameters: {
-                    type: "object",
-                    properties: tool.inputSchema.properties || {},
-                    required: tool.inputSchema.required || []
-                }
-            }
-        }));
-
-        const response = await this.openai.chat.completions.create({
+        // 创建请求参数对象
+        const requestParams: any = {
             model: "qwen-plus",
-            messages,
-            tools: openAITools,
-        });
+            messages
+        };
+
+        // 只有当tools非空时才添加tools参数
+        if (this.tools && this.tools.length > 0) {
+            const openAITools = this.tools.map(tool => ({
+                type: 'function' as const,
+                function: {
+                    name: tool.name,
+                    description: tool.description || "",
+                    parameters: {
+                        type: "object",
+                        properties: tool.inputSchema.properties || {},
+                        required: tool.inputSchema.required || []
+                    }
+                }
+            }));
+            
+            requestParams.tools = openAITools;
+        }
+
+        // 使用构建的参数对象发送请求
+        const response = await this.openai.chat.completions.create(requestParams);
 
         const choice = response.choices[0];
-        if (!choice.message.tool_calls) {
+        const results: string[] = [];
+
+        // 如果没有tool_calls，直接返回内容
+        if (!choice.message.tool_calls || choice.message.tool_calls.length === 0) {
             return choice.message.content || "抱歉，我不太理解您的问题。";
         }
 
-        const results = [];
         for (const toolCall of choice.message.tool_calls) {
             const toolName = toolCall.function.name;
             const toolArgs = JSON.parse(toolCall.function.arguments);
@@ -111,7 +127,7 @@ export class MCPClient {
                     const text = result.content.map(item => item.text).join('');
                     results.push(text);
                 } else {
-                    results.push(result.content);
+                    results.push(JSON.stringify(result.content));
                 }
             }
 
@@ -136,6 +152,48 @@ export class MCPClient {
 
         results.push(finalResponse.choices[0].message.content || "");
         return results.join("\n\n");
+    }
+
+    /**
+     * 直接调用MCP工具
+     * @param toolName 工具名称
+     * @param args 工具参数
+     * @returns 调用结果
+     */
+    async callTool(toolName: string, args: any) {
+        if (!this.mcp) {
+            throw new Error("MCP客户端未初始化");
+        }
+        return this.mcp.callTool({
+            name: toolName,
+            arguments: args
+        });
+    }
+
+    /**
+     * 当没有可用工具时，直接使用模型生成回应
+     */
+    async generateDirectResponse(query: string): Promise<string> {
+        try {
+            const response = await this.openai.chat.completions.create({
+                model: "qwen-plus",
+                messages: [
+                    {
+                        role: "system",
+                        content: "你是一个专业的助手，能够帮助用户分析和理解各种文档、数据和需求。请直接回答用户的问题，提供专业、准确的信息。"
+                    },
+                    {
+                        role: "user",
+                        content: query
+                    }
+                ]
+            });
+
+            return response.choices[0].message.content || "抱歉，我无法生成有效的回应。";
+        } catch (error) {
+            console.error("直接生成回应时出错:", error);
+            return "抱歉，在处理您的请求时遇到了问题。请稍后再试。";
+        }
     }
 
     async cleanup() {

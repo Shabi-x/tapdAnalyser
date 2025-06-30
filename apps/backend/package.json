@@ -12,6 +12,7 @@
     "start:client": "tsc && node dist/client/index.js",
     "start:server": "tsc && node dist/server/index.js",
     "start:api": "tsc && node dist/index.js",
+    "start:mcp": "tsc && node dist/client/index.js dist/server/index.js",
     "lint": "eslint src --ext .ts",
     "type-check": "tsc --noEmit"
   },
@@ -21,6 +22,8 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/multer": "^1.4.13",
+    "axios": "^1.10.0",
+    "cheerio": "^1.1.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
