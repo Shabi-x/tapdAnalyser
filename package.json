@@ -4,7 +4,15 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
+    "build:backend": "pnpm --filter backend build",
+    "build:frontend": "pnpm --filter frontend build",
     "dev": "turbo run dev",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend dev:api",
+    "dev:all": "concurrently \"pnpm dev:frontend\" \"pnpm dev:backend\"",
+    "start:all": "pnpm build && concurrently \"pnpm start:frontend\" \"pnpm start:backend\"",
+    "start:frontend": "pnpm --filter frontend preview",
+    "start:backend": "pnpm --filter backend start:api",
     "lint": "turbo run lint",
     "clean": "turbo run clean && rm -rf node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
@@ -17,7 +25,8 @@
   "devDependencies": {
     "turbo": "^1.12.4",
     "prettier": "^3.2.5",
-    "@types/node": "^20.11.19"
+    "@types/node": "^20.11.19",
+    "concurrently": "^8.2.2"
   },
   "packageManager": "pnpm@10.12.4",
   "engines": {
