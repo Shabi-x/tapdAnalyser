@@ -59,24 +59,60 @@ interface DashboardConfig {
 function parseMarkdownSections(markdown: string): Record<string, string> {
   const sections: Record<string, string> = {};
   
-  // 查找主标题 (# 标题)
-  const titleMatch = markdown.match(/^#\s+([^\n]+)/);
-  if (titleMatch) {
-    sections["_title_"] = titleMatch[1].trim();
+  if (!markdown) {
+    console.error("Markdown内容为空");
+    return sections;
   }
   
-  // 使用正则表达式匹配Markdown标题和内容
-  const regex = /###\s+([^\n]+)\n+([^#]*)/g;
-  let match;
-  
-  while ((match = regex.exec(markdown)) !== null) {
-    const title = match[1].trim();
-    const content = match[2].trim();
+  try {
+    // 分割行
+    const lines = markdown.split('\n');
+    let currentSection: string | null = null;
+    let currentContent: string[] = [];
     
-    // 存储标题和内容
-    if (title && content) {
-      sections[title] = content;
+    console.log(`开始解析Markdown，共${lines.length}行`);
+    
+    // 查找顶级标题作为标题内容
+    if (lines.length > 0 && lines[0].startsWith('# ')) {
+      sections["_title_"] = lines[0].substring(2).trim();
+      console.log(`找到顶级标题: ${sections["_title_"]}`);
     }
+    
+    // 逐行处理，查找三级标题和内容
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // 如果是三级标题，开始一个新的部分
+      if (line.startsWith('### ')) {
+        // 如果之前有部分正在处理，保存它
+        if (currentSection && currentContent.length > 0) {
+          sections[currentSection] = currentContent.join('\n').trim();
+          console.log(`保存部分 "${currentSection}" 内容长度: ${sections[currentSection].length}`);
+        }
+        
+        // 开始新部分
+        currentSection = line.substring(4).trim();
+        currentContent = [];
+        console.log(`发现新部分: ${currentSection}`);
+      }
+      // 如果不是标题且当前有活动的部分，添加到内容
+      else if (currentSection && !line.startsWith('#')) {
+        // 跳过空行
+        if (line.trim()) {
+          currentContent.push(line);
+        }
+      }
+    }
+    
+    // 保存最后一个部分
+    if (currentSection && currentContent.length > 0) {
+      sections[currentSection] = currentContent.join('\n').trim();
+      console.log(`保存最后部分 "${currentSection}" 内容长度: ${sections[currentSection].length}`);
+    }
+    
+    console.log(`解析完成，共找到 ${Object.keys(sections).length} 个部分`);
+  } catch (error) {
+    console.error("解析Markdown部分失败:", error);
   }
   
   return sections;
@@ -94,17 +130,23 @@ function findMatchingEnumKey(sectionTitle: string): string | null {
 
 // 转换维度内容为配置
 function dimensionsToConfig(content: string) {
-  const dimensions = content.split(/，|,|\n/).map(dim => dim.trim()).filter(Boolean);
+  // 防御性检查
+  if (!content) {
+    return { config: [] };
+  }
+  
+  const dimensions = (content || '').split(/，|,|\n/).map(dim => dim?.trim() || '').filter(Boolean);
   return {
     config: dimensions.map(dim => {
       // 检查是否有特殊处理
       if (DASHBOARD_ENUM_MAPPINGS.dimensions.specialCases && 
+          dim && 
           DASHBOARD_ENUM_MAPPINGS.dimensions.specialCases[dim]) {
         return DASHBOARD_ENUM_MAPPINGS.dimensions.specialCases[dim];
       }
       
       // 默认格式
-      const key = dim.toLowerCase().replace(/[\s-]/g, '');
+      const key = (dim || '').toLowerCase().replace(/[\s-]/g, '');
       return {
         value: `${key}_id`,
         label: dim,
@@ -116,11 +158,17 @@ function dimensionsToConfig(content: string) {
 
 // 转换口径内容为配置
 function caliberToConfig(content: string) {
-  const calibers = content.split(/，|,|\n/).map(cal => cal.trim()).filter(Boolean);
+  // 防御性检查
+  if (!content) {
+    return { config: [] };
+  }
+  
+  const calibers = (content || '').split(/，|,|\n/).map(cal => cal?.trim() || '').filter(Boolean);
   return {
     config: calibers.map(cal => {
       // 检查是否有特殊处理
       if (DASHBOARD_ENUM_MAPPINGS.caliber.mappings && 
+          cal && 
           DASHBOARD_ENUM_MAPPINGS.caliber.mappings[cal]) {
         return DASHBOARD_ENUM_MAPPINGS.caliber.mappings[cal];
       }
@@ -136,20 +184,38 @@ function caliberToConfig(content: string) {
 
 // 转换日期分组内容为配置
 function dateGroupToConfig(content: string) {
-  const dateTypes = content.split(/，|,|\n/).map(type => type.trim()).filter(Boolean);
-  const mappings = DASHBOARD_ENUM_MAPPINGS.dateGroup.mappings;
+  // 防御性检查
+  if (!content) {
+    return { config: [] };
+  }
+  
+  const dateTypes = (content || '').split(/，|,|\n/).map(type => type?.trim() || '').filter(Boolean);
+  const mappings = DASHBOARD_ENUM_MAPPINGS.dateGroup.mappings || {};
   
   return {
     config: dateTypes
-      .map(type => mappings[type] || { label: type, value: type.toLowerCase() })
-      .filter(Boolean)
+      .map(type => (type && mappings[type]) || { label: type || '', value: (type || '').toLowerCase() })
+      .filter(item => item.label) // 确保有标签
   };
 }
 
 // 转换表格内容为配置
 function tableToConfig(content: string) {
-  const columns = content.split(/，|,|\n/).map(col => col.trim()).filter(Boolean);
-  const columnMappings = DASHBOARD_ENUM_MAPPINGS.table.columnMappings;
+  // 防御性检查
+  if (!content) {
+    return { 
+      config: { 
+        tableBlock: { 
+          tableProps: { 
+            columns: [] 
+          } 
+        } 
+      } 
+    };
+  }
+  
+  const columns = (content || '').split(/，|,|\n/).map(col => col?.trim() || '').filter(Boolean);
+  const columnMappings = DASHBOARD_ENUM_MAPPINGS.table.columnMappings || {};
   
   return {
     config: {
@@ -157,12 +223,12 @@ function tableToConfig(content: string) {
         tableProps: {
           columns: columns.map((col, index) => {
             // 检查是否有特殊处理
-            if (columnMappings && columnMappings[col]) {
+            if (columnMappings && col && columnMappings[col]) {
               return columnMappings[col];
             }
             
             // 默认格式
-            const field = col.toLowerCase().replace(/[\s-]/g, '');
+            const field = (col || '').toLowerCase().replace(/[\s-]/g, '');
             const column: {
               field: string;
               title: string;
@@ -170,7 +236,7 @@ function tableToConfig(content: string) {
               align?: string;
             } = {
               field,
-              title: col
+              title: col || ''
             };
             
             // 第一列通常是固定的ID列
@@ -193,8 +259,13 @@ function generateDashboardConfig(markdown: string): DashboardConfig {
     title: '数据看板' // 默认标题
   };
   
+  // 防御性检查
+  if (!markdown) {
+    return config;
+  }
+  
   // 解析Markdown各部分
-  const sections = parseMarkdownSections(markdown);
+  const sections = parseMarkdownSections(markdown || '');
   
   // 如果找到了主标题，使用它
   if (sections["_title_"]) {
@@ -204,14 +275,16 @@ function generateDashboardConfig(markdown: string): DashboardConfig {
   
   // 查找"标题"部分作为备选
   for (const [sectionTitle, content] of Object.entries(sections)) {
-    if (sectionTitle.includes("标题") || sectionTitle.includes("名称")) {
-      config.title = content;
+    if (sectionTitle && (sectionTitle.includes("标题") || sectionTitle.includes("名称"))) {
+      config.title = content || '数据看板';
       break;
     }
   }
   
   // 处理每个部分
   for (const [sectionTitle, sectionContent] of Object.entries(sections)) {
+    if (!sectionTitle) continue;
+    
     const enumKey = findMatchingEnumKey(sectionTitle);
     
     if (!enumKey) continue; // 如果不在枚举中，跳过处理
@@ -219,16 +292,16 @@ function generateDashboardConfig(markdown: string): DashboardConfig {
     // 根据不同的枚举类型进行处理
     switch (enumKey) {
       case 'dimensions':
-        config.dimensions = dimensionsToConfig(sectionContent);
+        config.dimensions = dimensionsToConfig(sectionContent || '');
         break;
       case 'caliber':
-        config.caliber = caliberToConfig(sectionContent);
+        config.caliber = caliberToConfig(sectionContent || '');
         break;
       case 'dateGroup':
-        config.dateGroup = dateGroupToConfig(sectionContent);
+        config.dateGroup = dateGroupToConfig(sectionContent || '');
         break;
       case 'table':
-        config.table = tableToConfig(sectionContent);
+        config.table = tableToConfig(sectionContent || '');
         break;
     }
   }
