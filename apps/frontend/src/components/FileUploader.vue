@@ -354,7 +354,7 @@ const analyzeContent = async () => {
 }
 
 .content-wrapper {
-  height: 400px;
+  height: 100%;
   overflow-y: auto;
   border: 1px solid #EAEAEA;
   border-radius: 4px;
@@ -378,6 +378,7 @@ const analyzeContent = async () => {
 
 /* 为了允许渲染的Markdown正确显示 */
 :deep(.markdown-content) {
+  height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   line-height: 1.6;
   color: #333;

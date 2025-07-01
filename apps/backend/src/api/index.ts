@@ -5,12 +5,22 @@ import multer from 'multer';
 import { MCPClient } from '../client/mcpClient.js';
 import path from 'path';
 import fs from 'fs';
-import { DEFAULT_CONVERT_RULE, COMPLEX_CONFIG_EXAMPLE, generateConfigFromMarkdown } from '../rules/transform.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3003;
+
+// 定义一个简单的默认规则，替代原来从transform.js导入的规则
+const DEFAULT_CONVERT_RULE = {
+  prompt: "请将以下Markdown格式的需求文档转换为TypeScript配置代码，生成一个符合需求的仪表盘配置对象。",
+  examples: [
+    {
+      input: "示例输入",
+      output: "示例输出"
+    }
+  ]
+};
 
 // 全局MCP客户端
 let mcpClient: MCPClient | null = null;
@@ -161,7 +171,7 @@ const convertHandler: RequestHandler = async (req, res) => {
     }
     
     // 使用提供的规则或默认规则
-    const convertRule = rule || DEFAULT_CONVERT_RULE;
+    const convertRule = rule
     
     // 获取MCP客户端
     const client = await initMCPClient();
@@ -317,37 +327,7 @@ const uploadHandler: RequestHandler = (req, res) => {
 // 获取可用枚举配置
 const getEnumsHandler: RequestHandler = (req, res) => {
   try {
-    // 这里可以从数据库或配置文件中获取实际的枚举配置
-    // 为简化示例，我们返回一些硬编码的枚举
     const enums = {
-      productTypes: [
-        { label: '产品A', value: 'A', code: 'PROD_A' },
-        { label: '产品B', value: 'B', code: 'PROD_B' },
-        { label: '产品C', value: 'C', code: 'PROD_C' }
-      ],
-      regions: [
-        { label: '华东', value: 'east', code: 'REGION_EAST' },
-        { label: '华南', value: 'south', code: 'REGION_SOUTH' },
-        { label: '华北', value: 'north', code: 'REGION_NORTH' },
-        { label: '华西', value: 'west', code: 'REGION_WEST' }
-      ],
-      channels: [
-        { label: '线上', value: 'online', code: 'CHANNEL_ONLINE' },
-        { label: '线下', value: 'offline', code: 'CHANNEL_OFFLINE' },
-        { label: '代理商', value: 'agent', code: 'CHANNEL_AGENT' }
-      ],
-      chartTypes: [
-        { label: '折线图', value: 'line' },
-        { label: '柱状图', value: 'bar' },
-        { label: '饼图', value: 'pie' }
-      ],
-      dateGroup: [
-        { label: '按日', value: 'day' },
-        { label: '按周', value: 'week' },
-        { label: '按月', value: 'month' },
-        { label: '按季度', value: 'quarter' },
-        { label: '按年', value: 'year' }
-      ]
     };
     
     res.json(enums);

@@ -1,6 +1,240 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { DEFAULT_CONVERT_RULE } from "../rules/transform.js";
+import { DASHBOARD_ENUM_MAPPINGS } from "./const.js";
+// 添加DEFAULT_CONVERT_RULE的定义
+const DEFAULT_CONVERT_RULE = {
+  prompt: "请将以下Markdown格式的需求文档转换为TypeScript配置代码，生成一个符合需求的仪表盘配置对象。",
+  examples: [
+    {
+      input: "示例输入",
+      output: "示例输出"
+    }
+  ]
+};
+
+
+
+// 定义类型接口
+interface DashboardConfig {
+  title: string;
+  dimensions?: {
+    config: Array<{
+      value: string;
+      label: string;
+      name?: string;
+      fixed?: boolean;
+      disabledSort?: boolean;
+      children?: string[];
+    }>
+  };
+  caliber?: {
+    config: Array<{
+      label: string;
+      value: number | string;
+    }>
+  };
+  dateGroup?: {
+    config: Array<{
+      label: string;
+      value: string;
+    }>
+  };
+  table?: {
+    config: {
+      tableBlock: {
+        tableProps: {
+          columns: Array<{
+            field: string;
+            title: string;
+            fixed?: string;
+            align?: string;
+          }>
+        }
+      }
+    }
+  };
+}
+
+// 添加Markdown解析和转换函数
+function parseMarkdownSections(markdown: string): Record<string, string> {
+  const sections: Record<string, string> = {};
+  
+  // 查找主标题 (# 标题)
+  const titleMatch = markdown.match(/^#\s+([^\n]+)/);
+  if (titleMatch) {
+    sections["_title_"] = titleMatch[1].trim();
+  }
+  
+  // 使用正则表达式匹配Markdown标题和内容
+  const regex = /###\s+([^\n]+)\n+([^#]*)/g;
+  let match;
+  
+  while ((match = regex.exec(markdown)) !== null) {
+    const title = match[1].trim();
+    const content = match[2].trim();
+    
+    // 存储标题和内容
+    if (title && content) {
+      sections[title] = content;
+    }
+  }
+  
+  return sections;
+}
+
+// 查找匹配的枚举键
+function findMatchingEnumKey(sectionTitle: string): string | null {
+  for (const [key, config] of Object.entries(DASHBOARD_ENUM_MAPPINGS)) {
+    if (config.patterns.some(pattern => sectionTitle.includes(pattern))) {
+      return key;
+    }
+  }
+  return null;
+}
+
+// 转换维度内容为配置
+function dimensionsToConfig(content: string) {
+  const dimensions = content.split(/，|,|\n/).map(dim => dim.trim()).filter(Boolean);
+  return {
+    config: dimensions.map(dim => {
+      // 检查是否有特殊处理
+      if (DASHBOARD_ENUM_MAPPINGS.dimensions.specialCases && 
+          DASHBOARD_ENUM_MAPPINGS.dimensions.specialCases[dim]) {
+        return DASHBOARD_ENUM_MAPPINGS.dimensions.specialCases[dim];
+      }
+      
+      // 默认格式
+      const key = dim.toLowerCase().replace(/[\s-]/g, '');
+      return {
+        value: `${key}_id`,
+        label: dim,
+        name: `${key}_name`
+      };
+    })
+  };
+}
+
+// 转换口径内容为配置
+function caliberToConfig(content: string) {
+  const calibers = content.split(/，|,|\n/).map(cal => cal.trim()).filter(Boolean);
+  return {
+    config: calibers.map(cal => {
+      // 检查是否有特殊处理
+      if (DASHBOARD_ENUM_MAPPINGS.caliber.mappings && 
+          DASHBOARD_ENUM_MAPPINGS.caliber.mappings[cal]) {
+        return DASHBOARD_ENUM_MAPPINGS.caliber.mappings[cal];
+      }
+      
+      // 默认格式
+      return {
+        label: cal,
+        value: 0
+      };
+    })
+  };
+}
+
+// 转换日期分组内容为配置
+function dateGroupToConfig(content: string) {
+  const dateTypes = content.split(/，|,|\n/).map(type => type.trim()).filter(Boolean);
+  const mappings = DASHBOARD_ENUM_MAPPINGS.dateGroup.mappings;
+  
+  return {
+    config: dateTypes
+      .map(type => mappings[type] || { label: type, value: type.toLowerCase() })
+      .filter(Boolean)
+  };
+}
+
+// 转换表格内容为配置
+function tableToConfig(content: string) {
+  const columns = content.split(/，|,|\n/).map(col => col.trim()).filter(Boolean);
+  const columnMappings = DASHBOARD_ENUM_MAPPINGS.table.columnMappings;
+  
+  return {
+    config: {
+      tableBlock: {
+        tableProps: {
+          columns: columns.map((col, index) => {
+            // 检查是否有特殊处理
+            if (columnMappings && columnMappings[col]) {
+              return columnMappings[col];
+            }
+            
+            // 默认格式
+            const field = col.toLowerCase().replace(/[\s-]/g, '');
+            const column: {
+              field: string;
+              title: string;
+              fixed?: string;
+              align?: string;
+            } = {
+              field,
+              title: col
+            };
+            
+            // 第一列通常是固定的ID列
+            if (index === 0) {
+              column.fixed = 'left';
+              column.align = 'center';
+            }
+            
+            return column;
+          })
+        }
+      }
+    }
+  };
+}
+
+// 生成仪表盘配置
+function generateDashboardConfig(markdown: string): DashboardConfig {
+  const config: DashboardConfig = {
+    title: '数据看板' // 默认标题
+  };
+  
+  // 解析Markdown各部分
+  const sections = parseMarkdownSections(markdown);
+  
+  // 如果找到了主标题，使用它
+  if (sections["_title_"]) {
+    config.title = sections["_title_"];
+    delete sections["_title_"]; // 处理完后删除，避免影响后续处理
+  }
+  
+  // 查找"标题"部分作为备选
+  for (const [sectionTitle, content] of Object.entries(sections)) {
+    if (sectionTitle.includes("标题") || sectionTitle.includes("名称")) {
+      config.title = content;
+      break;
+    }
+  }
+  
+  // 处理每个部分
+  for (const [sectionTitle, sectionContent] of Object.entries(sections)) {
+    const enumKey = findMatchingEnumKey(sectionTitle);
+    
+    if (!enumKey) continue; // 如果不在枚举中，跳过处理
+    
+    // 根据不同的枚举类型进行处理
+    switch (enumKey) {
+      case 'dimensions':
+        config.dimensions = dimensionsToConfig(sectionContent);
+        break;
+      case 'caliber':
+        config.caliber = caliberToConfig(sectionContent);
+        break;
+      case 'dateGroup':
+        config.dateGroup = dateGroupToConfig(sectionContent);
+        break;
+      case 'table':
+        config.table = tableToConfig(sectionContent);
+        break;
+    }
+  }
+  
+  return config;
+}
 
 async function main() {
     try {
@@ -24,97 +258,133 @@ async function main() {
             "transformMarkdownToBIDashboard",
             "将Markdown格式的需求文档转换为仪表盘配置代码",
             {
-                plainText: { type: "string", description: "已转换为纯文本格式的需求文档内容" },
+                markdownContent: { type: "string", description: "Markdown格式的需求文档内容" },
                 customRules: { type: "string", description: "自定义转换规则，JSON格式字符串，可选" }
             },
-            async ({ plainText, customRules }): Promise<any> => {
+            async ({ markdownContent, customRules }): Promise<any> => {
                 
                 try {
-                    // 获取基础规则
-                    const baseRule = DEFAULT_CONVERT_RULE;
+                    console.log("收到Markdown转换请求，内容长度:", markdownContent?.length || 0);
                     
-                    // 解析自定义规则（如果有）
-                    let mergedRule = { ...baseRule };
-                    if (customRules) {
-                        try {
-                            const parsedCustomRules = JSON.parse(customRules);
-                            // 合并自定义规则和默认规则
-                            mergedRule = {
-                                ...baseRule,
-                                ...parsedCustomRules,
-                                // 如果自定义规则中有prompt，则覆盖默认prompt
-                                prompt: parsedCustomRules.prompt || baseRule.prompt,
-                                // 合并examples，如果自定义规则中有examples
-                                examples: [
-                                    ...(baseRule.examples || []),
-                                    ...(parsedCustomRules.examples || [])
-                                ]
-                            };
-                            console.log("已合并自定义规则");
-                        } catch (parseError) {
-                            console.error("解析自定义规则失败:", parseError);
-                            // 如果解析失败，继续使用默认规则
-                        }
-                    }
+                    // 先尝试根据枚举规则直接转换
+                    const dashboardConfig = generateDashboardConfig(markdownContent);
+                    console.log("基于枚举规则生成的配置:", JSON.stringify(dashboardConfig, null, 2));
                     
-                    // 使用合并后的规则中的提示词
-                    let prompt = mergedRule.prompt;
+                    // 如果配置非常简单或缺少关键部分，则使用大模型辅助生成
+                    const needModelAssistance = 
+                      !dashboardConfig.dimensions || 
+                      !dashboardConfig.table || 
+                      Object.keys(dashboardConfig).length <= 2;
                     
-                    // 构建示例部分（如果有）
-                    let examplesText = "";
-                    const examples = mergedRule.examples;
-                    if (examples && Array.isArray(examples) && examples.length > 0) {
-                        examplesText = "\n\n示例：\n";
-                        for (const example of examples) {
-                            if (example && example.input && example.output) {
-                                examplesText += `\n输入：\n${example.input}\n\n输出：\n${example.output}\n`;
+                    if (needModelAssistance) {
+                        console.log("枚举转换结果不完整，使用大模型辅助生成");
+                        
+                        // 获取基础规则
+                        const baseRule = DEFAULT_CONVERT_RULE;
+                        
+                        // 解析自定义规则（如果有）
+                        let mergedRule = { ...baseRule };
+                        if (customRules) {
+                            try {
+                                const parsedCustomRules = JSON.parse(customRules);
+                                // 合并自定义规则和默认规则
+                                mergedRule = {
+                                    ...baseRule,
+                                    ...parsedCustomRules,
+                                    prompt: parsedCustomRules.prompt || baseRule.prompt,
+                                    examples: [
+                                        ...(baseRule.examples || []),
+                                        ...(parsedCustomRules.examples || [])
+                                    ]
+                                };
+                                console.log("已合并自定义规则");
+                            } catch (parseError: any) {
+                                console.error("解析自定义规则失败:", parseError);
+                                // 直接返回解析错误，不让大模型进一步处理
+                                return {
+                                    content: [
+                                        {
+                                            type: "text" as const,
+                                            text: JSON.stringify({
+                                                error: true,
+                                                message: `解析自定义规则失败: ${parseError.message || '未知错误'}`
+                                            })
+                                        },
+                                    ],
+                                };
                             }
                         }
+                        
+                        // 构建提示词
+                        let prompt = mergedRule.prompt;
+                        let examplesText = "";
+                        const examples = mergedRule.examples;
+                        if (examples && Array.isArray(examples) && examples.length > 0) {
+                            examplesText = "\n\n示例：\n";
+                            for (const example of examples) {
+                                if (example && example.input && example.output) {
+                                    examplesText += `\n输入：\n${example.input}\n\n输出：\n${example.output}\n`;
+                                }
+                            }
+                        }
+                        
+                        // 构建完整的提示词
+                        const fullPrompt = `${prompt}${examplesText}\n\n以下是需要转换的内容：\n\n${markdownContent}`;
+                        console.log("已构建完整提示词，长度:", fullPrompt.length);
+                        
+                        // 返回规则配置和需要转换的内容，标记需要进一步处理
+                        return {
+                            content: [
+                                {
+                                    type: "text" as const,
+                                    text: JSON.stringify({
+                                        rule: mergedRule,
+                                        content: markdownContent,
+                                        prompt: fullPrompt,
+                                        partialConfig: dashboardConfig,
+                                        needModelAssistance: true
+                                    })
+                                },
+                            ],
+                        };
+                    } else {
+                        // 枚举转换结果足够完整，直接返回
+                        console.log("枚举转换成功，直接返回配置");
+                        // 生成最终的JavaScript配置代码
+                        const configCode = `const tableBlock = ${JSON.stringify(dashboardConfig, null, 2)};`;
+                        
+                        return {
+                            content: [
+                                {
+                                    type: "text" as const,
+                                    text: JSON.stringify({
+                                        configCode,
+                                        config: dashboardConfig
+                                    })
+                                },
+                            ],
+                        };
                     }
-                    
-                    // 构建完整的提示词
-                    const fullPrompt = `${prompt}${examplesText}\n\n以下是需要转换的内容：\n\n${plainText}`;
-                    
-                    console.log("已构建完整提示词，长度:", fullPrompt.length);
-                    
-                    // 返回规则配置和需要转换的内容
+                } catch (error: any) {
+                    console.error("处理文档转换请求失败:", error);
+                    // 直接返回简单的错误信息，不让大模型进一步处理
                     return {
                         content: [
                             {
                                 type: "text" as const,
                                 text: JSON.stringify({
-                                    rule: mergedRule,
-                                    content: plainText,
-                                    prompt: fullPrompt
+                                    error: true,
+                                    message: `处理失败: ${error.message || '未知错误'}`
                                 })
-                            },
-                        ],
-                    };
-                } catch (error: any) {
-                    console.error("处理文档转换请求失败:", error);
-                    return {
-                        content: [
-                            {
-                                type: "text" as const,
-                                text: `处理文档转换请求失败: ${error.message || '未知错误'}`,
                             },
                         ],
                     };
                 }
             }
         );
-
-        console.log("初始化 StdioServerTransport...");
         const transport = new StdioServerTransport();
-        
-        console.log("连接到传输层...");
         await server.connect(transport);
-        
-        console.log("MCP 服务器启动成功！等待客户端连接...");
-
-        // 添加进程退出处理
         process.on('SIGINT', async () => {
-            console.log("\n收到中断信号，正在关闭服务器...");
             await server.close();
             process.exit(0);
         });

@@ -373,6 +373,7 @@ const copyResultToClipboard = async () => {
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+  flex: 1;
 }
 
 :deep(.t-tabs) {
