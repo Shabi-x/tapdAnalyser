@@ -110,54 +110,10 @@ export class MCPClient {
             if (result.content) {
                 if (Array.isArray(result.content)) {
                     if (toolName === "transformMarkdownToBIDashboard") {
-                        try {
-                            const textContent = result.content[0]?.text || "";
-                            const dataObj = JSON.parse(textContent);
-                            
-                            if (dataObj.prompt && dataObj.markdownContent) {
-                                console.log("接收到Markdown转换数据，正在调用大模型生成配置代码...");
-                                
-                                const aiResponse = await this.openai.chat.completions.create({
-                                    model: "qwen-plus",
-                                    messages: [
-                                        {
-                                            role: "system",
-                                            content: "你是一个专业的需求文档分析工具，擅长将Markdown文档转换为TypeScript配置代码。"
-                                        },
-                                        {
-                                            role: "user",
-                                            content: dataObj.prompt
-                                        }
-                                    ],
-                                    temperature: 0.2,
-                                });
-                                
-                                let generatedCode = aiResponse.choices[0].message.content || "";
-                                
-                                if (generatedCode.includes('```typescript')) {
-                                    generatedCode = generatedCode.split('```typescript')[1].split('```')[0].trim();
-                                } else if (generatedCode.includes('```ts')) {
-                                    generatedCode = generatedCode.split('```ts')[1].split('```')[0].trim();
-                                } else if (generatedCode.includes('```javascript')) {
-                                    generatedCode = generatedCode.split('```javascript')[1].split('```')[0].trim();
-                                } else if (generatedCode.includes('```js')) {
-                                    generatedCode = generatedCode.split('```js')[1].split('```')[0].trim();
-                                } else if (generatedCode.includes('```')) {
-                                    generatedCode = generatedCode.split('```')[1].split('```')[0].trim();
-                                }
-                                
-                                console.log("配置代码生成成功，长度:", generatedCode.length);
-                                
-                                results.push(generatedCode);
-                            } else {
-                                const text = result.content.map(item => item.text).join('');
-                                results.push(text);
-                            }
-                        } catch (error) {
-                            console.error("处理Markdown转换结果失败:", error);
-                            const text = result.content.map(item => item.text).join('');
-                            results.push(text);
-                        }
+                        // 直接显示文本内容，无需解析
+                        const textContent = result.content[0]?.text || "";
+                        console.log("收到服务器返回的转换结果，直接显示");
+                        results.push(textContent);
                     } else {
                         const text = result.content.map(item => item.text).join('');
                         results.push(text);

@@ -339,105 +339,26 @@ async function main() {
                 try {
                     console.log("收到Markdown转换请求，内容长度:", markdownContent?.length || 0);
                     
-                    // 先尝试根据枚举规则直接转换
+                    // 使用枚举规则直接转换
                     const dashboardConfig = generateDashboardConfig(markdownContent);
                     console.log("基于枚举规则生成的配置:", JSON.stringify(dashboardConfig, null, 2));
                     
-                    // 如果配置非常简单或缺少关键部分，则使用大模型辅助生成
-                    const needModelAssistance = 
-                      !dashboardConfig.dimensions || 
-                      !dashboardConfig.table || 
-                      Object.keys(dashboardConfig).length <= 2;
+                    // 始终使用枚举映射结果，无需大模型干预
+                    console.log("使用枚举映射转换成功，直接返回配置");
+                    // 生成最终的JavaScript配置代码
+                    const configCode = `// 仪表盘配置
+const dashboardConfig = ${JSON.stringify(dashboardConfig, null, 2)};
+
+export default dashboardConfig;`;
                     
-                    if (needModelAssistance) {
-                        console.log("枚举转换结果不完整，使用大模型辅助生成");
-                        
-                        // 获取基础规则
-                        const baseRule = DEFAULT_CONVERT_RULE;
-                        
-                        // 解析自定义规则（如果有）
-                        let mergedRule = { ...baseRule };
-                        if (customRules) {
-                            try {
-                                const parsedCustomRules = JSON.parse(customRules);
-                                // 合并自定义规则和默认规则
-                                mergedRule = {
-                                    ...baseRule,
-                                    ...parsedCustomRules,
-                                    prompt: parsedCustomRules.prompt || baseRule.prompt,
-                                    examples: [
-                                        ...(baseRule.examples || []),
-                                        ...(parsedCustomRules.examples || [])
-                                    ]
-                                };
-                                console.log("已合并自定义规则");
-                            } catch (parseError: any) {
-                                console.error("解析自定义规则失败:", parseError);
-                                // 直接返回解析错误，不让大模型进一步处理
-                                return {
-                                    content: [
-                                        {
-                                            type: "text" as const,
-                                            text: JSON.stringify({
-                                                error: true,
-                                                message: `解析自定义规则失败: ${parseError.message || '未知错误'}`
-                                            })
-                                        },
-                                    ],
-                                };
-                            }
-                        }
-                        
-                        // 构建提示词
-                        let prompt = mergedRule.prompt;
-                        let examplesText = "";
-                        const examples = mergedRule.examples;
-                        if (examples && Array.isArray(examples) && examples.length > 0) {
-                            examplesText = "\n\n示例：\n";
-                            for (const example of examples) {
-                                if (example && example.input && example.output) {
-                                    examplesText += `\n输入：\n${example.input}\n\n输出：\n${example.output}\n`;
-                                }
-                            }
-                        }
-                        
-                        // 构建完整的提示词
-                        const fullPrompt = `${prompt}${examplesText}\n\n以下是需要转换的内容：\n\n${markdownContent}`;
-                        console.log("已构建完整提示词，长度:", fullPrompt.length);
-                        
-                        // 返回规则配置和需要转换的内容，标记需要进一步处理
-                        return {
-                            content: [
-                                {
-                                    type: "text" as const,
-                                    text: JSON.stringify({
-                                        rule: mergedRule,
-                                        content: markdownContent,
-                                        prompt: fullPrompt,
-                                        partialConfig: dashboardConfig,
-                                        needModelAssistance: true
-                                    })
-                                },
-                            ],
-                        };
-                    } else {
-                        // 枚举转换结果足够完整，直接返回
-                        console.log("枚举转换成功，直接返回配置");
-                        // 生成最终的JavaScript配置代码
-                        const configCode = `const tableBlock = ${JSON.stringify(dashboardConfig, null, 2)};`;
-                        
-                        return {
-                            content: [
-                                {
-                                    type: "text" as const,
-                                    text: JSON.stringify({
-                                        configCode,
-                                        config: dashboardConfig
-                                    })
-                                },
-                            ],
-                        };
-                    }
+                    return {
+                        content: [
+                            {
+                                type: "text" as const,
+                                text: configCode
+                            },
+                        ],
+                    };
                 } catch (error: any) {
                     console.error("处理文档转换请求失败:", error);
                     // 直接返回简单的错误信息，不让大模型进一步处理

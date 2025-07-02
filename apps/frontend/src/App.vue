@@ -103,7 +103,7 @@ const copyResultToClipboard = async () => {
           <!-- 右侧结果区 -->
           <div v-if="showResultPanel" class="result-panel">
             <div class="panel-header">
-              <h3>分析结果</h3>
+              <h3>转换结果</h3>
               <t-space>
                 <t-button theme="primary" variant="text" size="small" @click="copyResultToClipboard" :disabled="!analysisResult">
                   <template #icon><t-icon name="file-copy" /></template>
