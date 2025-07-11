@@ -180,7 +180,7 @@ export class MCPClient {
                 messages: [
                     {
                         role: "system",
-                        content: "你是一个专业的助手，能够帮助用户分析和理解各种文档、数据和需求。请直接回答用户的问题，提供专业、准确的信息。"
+                        content: ""
                     },
                     {
                         role: "user",
